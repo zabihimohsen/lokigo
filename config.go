@@ -8,10 +8,15 @@ import (
 
 type BackpressureMode string
 
+type Encoding string
+
 const (
 	BackpressureBlock      BackpressureMode = "block"
 	BackpressureDropNew    BackpressureMode = "drop-new"
 	BackpressureDropOldest BackpressureMode = "drop-oldest"
+
+	EncodingProtobufSnappy Encoding = "protobuf-snappy"
+	EncodingJSON           Encoding = "json"
 )
 
 type RetryConfig struct {
@@ -24,6 +29,8 @@ type RetryConfig struct {
 type Config struct {
 	Endpoint         string
 	TenantID         string
+	Headers          map[string]string
+	Encoding         Encoding
 	StaticLabels     map[string]string
 	HTTPClient       *http.Client
 	QueueSize        int
@@ -40,6 +47,9 @@ type Config struct {
 func (c *Config) setDefaults() {
 	if c.HTTPClient == nil {
 		c.HTTPClient = &http.Client{Timeout: 10 * time.Second}
+	}
+	if c.Encoding == "" {
+		c.Encoding = EncodingProtobufSnappy
 	}
 	if c.QueueSize <= 0 {
 		c.QueueSize = 1024
@@ -78,6 +88,11 @@ func (c Config) validate() error {
 	case BackpressureBlock, BackpressureDropNew, BackpressureDropOldest:
 	default:
 		return errors.New("invalid backpressure mode")
+	}
+	switch c.Encoding {
+	case EncodingJSON, EncodingProtobufSnappy:
+	default:
+		return errors.New("invalid encoding")
 	}
 	if c.Retry.MaxAttempts < 1 {
 		return errors.New("retry.maxAttempts must be >= 1")

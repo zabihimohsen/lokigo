@@ -37,7 +37,7 @@ func TestBatchingByMaxEntries(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := NewClient(Config{Endpoint: srv.URL, BatchMaxEntries: 3, BatchMaxWait: 5 * time.Second})
+	c, err := NewClient(Config{Endpoint: srv.URL, Encoding: EncodingJSON, BatchMaxEntries: 3, BatchMaxWait: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +72,7 @@ func TestRetryEventuallySucceeds(t *testing.T) {
 
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
+		Encoding:        EncodingJSON,
 		BatchMaxEntries: 1,
 		Retry:           RetryConfig{MaxAttempts: 4, MinBackoff: 10 * time.Millisecond, MaxBackoff: 20 * time.Millisecond, JitterFrac: 0},
 	})
@@ -99,6 +100,7 @@ func TestRetryStopsOnHTTP400(t *testing.T) {
 
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
+		Encoding:        EncodingJSON,
 		BatchMaxEntries: 1,
 		Retry:           RetryConfig{MaxAttempts: 5, MinBackoff: 5 * time.Millisecond, MaxBackoff: 10 * time.Millisecond, JitterFrac: 0},
 	})
@@ -131,6 +133,7 @@ func TestRetryOnHTTP429(t *testing.T) {
 
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
+		Encoding:        EncodingJSON,
 		BatchMaxEntries: 1,
 		Retry:           RetryConfig{MaxAttempts: 4, MinBackoff: 5 * time.Millisecond, MaxBackoff: 10 * time.Millisecond, JitterFrac: 0},
 	})
@@ -157,6 +160,7 @@ func TestOnErrorCallback(t *testing.T) {
 
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
+		Encoding:        EncodingJSON,
 		BatchMaxEntries: 1,
 		OnError: func(err error) {
 			if err != nil {
@@ -200,7 +204,7 @@ func TestBatchingByMaxBytes(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := NewClient(Config{Endpoint: srv.URL, BatchMaxBytes: 4, BatchMaxEntries: 100, BatchMaxWait: 5 * time.Second})
+	c, err := NewClient(Config{Endpoint: srv.URL, Encoding: EncodingJSON, BatchMaxBytes: 4, BatchMaxEntries: 100, BatchMaxWait: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +234,7 @@ func TestTenantIDHeaderIsSent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := NewClient(Config{Endpoint: srv.URL, TenantID: tenant, BatchMaxEntries: 1})
+	c, err := NewClient(Config{Endpoint: srv.URL, Encoding: EncodingJSON, TenantID: tenant, BatchMaxEntries: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,6 +277,7 @@ func TestStaticLabelsMergedWithEntryLabelsEntryWins(t *testing.T) {
 
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
+		Encoding:        EncodingJSON,
 		BatchMaxEntries: 1,
 		StaticLabels: map[string]string{
 			"service": "api",
@@ -305,6 +310,7 @@ func TestCloseRespectsDeadlineDuringRetry(t *testing.T) {
 
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
+		Encoding:        EncodingJSON,
 		BatchMaxEntries: 1,
 		Retry: RetryConfig{
 			MaxAttempts: 10,
@@ -337,6 +343,7 @@ func TestCloseRespectsCanceledContext(t *testing.T) {
 
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
+		Encoding:        EncodingJSON,
 		BatchMaxEntries: 1,
 		Retry: RetryConfig{
 			MaxAttempts: 10,
