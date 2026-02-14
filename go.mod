@@ -1,3 +1,3 @@
-module github.com/yourorg/lokigo
+module github.com/zabihimohsen/lokigo
 
 go 1.22
