@@ -13,6 +13,8 @@ type SlogHandlerOption func(*slogHandlerConfig)
 type slogHandlerConfig struct {
 	level      slog.Leveler
 	levelLabel string
+	labelAllow map[string]struct{}
+	labelDeny  map[string]struct{}
 }
 
 // WithSlogLevel sets the minimum level this handler accepts.
@@ -26,12 +28,49 @@ func WithSlogLevelLabel(label string) SlogHandlerOption {
 	return func(c *slogHandlerConfig) { c.levelLabel = label }
 }
 
+// WithLabelAllowList configures which slog attrs are promoted to Loki labels.
+//
+// Keys must use flattened dot notation for grouped attrs (for example: "http.status").
+// By default, no attrs are promoted to labels.
+func WithLabelAllowList(keys ...string) SlogHandlerOption {
+	return func(c *slogHandlerConfig) {
+		if c.labelAllow == nil {
+			c.labelAllow = map[string]struct{}{}
+		}
+		for _, key := range keys {
+			key = strings.TrimSpace(key)
+			if key == "" {
+				continue
+			}
+			c.labelAllow[key] = struct{}{}
+		}
+	}
+}
+
+// WithLabelDenyList configures slog attrs that should never be promoted to Loki labels.
+//
+// Deny list has precedence over allow list.
+func WithLabelDenyList(keys ...string) SlogHandlerOption {
+	return func(c *slogHandlerConfig) {
+		if c.labelDeny == nil {
+			c.labelDeny = map[string]struct{}{}
+		}
+		for _, key := range keys {
+			key = strings.TrimSpace(key)
+			if key == "" {
+				continue
+			}
+			c.labelDeny[key] = struct{}{}
+		}
+	}
+}
+
 // NewSlogHandler adapts lokigo.Client to slog.Handler.
 //
 // It maps slog.Record to lokigo.Entry:
 //   - timestamp -> Entry.Timestamp
 //   - message + attrs -> Entry.Line
-//   - attrs/groups (+ optional level) -> Entry.Labels
+//   - allow-listed attrs/groups (+ optional level) -> Entry.Labels
 func NewSlogHandler(client *Client, opts ...SlogHandlerOption) slog.Handler {
 	cfg := slogHandlerConfig{level: slog.LevelInfo, levelLabel: "level"}
 	for _, opt := range opts {
@@ -120,8 +159,21 @@ func (h *slogHandler) collectAttr(labels map[string]string, parts *[]string, gro
 		return
 	}
 	val := valueToString(attr.Value)
-	labels[key] = val
+	if h.shouldPromoteToLabel(key) {
+		labels[key] = val
+	}
 	*parts = append(*parts, fmt.Sprintf("%s=%s", key, val))
+}
+
+func (h *slogHandler) shouldPromoteToLabel(key string) bool {
+	if _, denied := h.cfg.labelDeny[key]; denied {
+		return false
+	}
+	if len(h.cfg.labelAllow) == 0 {
+		return false
+	}
+	_, allowed := h.cfg.labelAllow[key]
+	return allowed
 }
 
 func prefixAttrsWithGroup(attrs []slog.Attr, group []string) []slog.Attr {
