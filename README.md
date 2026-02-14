@@ -9,6 +9,17 @@
 - configurable backpressure (`block`, `drop-new`, `drop-oldest`)
 - `log/slog` handler adapter for direct integration
 
+## Why lokigo / use cases
+
+`lokigo` is most useful when you **cannot rely on sidecars/agents** (for example on platforms like **Railway**) but still want reliable, controlled delivery to Loki from inside your Go service.
+
+Typical use cases:
+
+- Platforms/environments where sidecars are not available
+- Lightweight services that want to avoid heavy logging dependency trees
+- Teams needing explicit control over retry/backpressure behavior in application code
+- `slog`-based apps that want direct Loki integration with cardinality-safe labels
+
 ## Install
 
 ```bash
