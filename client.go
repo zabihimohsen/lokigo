@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
 )
 
 var ErrDropped = errors.New("entry dropped due to backpressure")
@@ -96,8 +95,21 @@ func (c *Client) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			flush(context.Background())
-			return
+			// Drain any buffered entries that were accepted before shutdown.
+			for {
+				select {
+				case e := <-c.queue:
+					lineSize := len(e.Line)
+					if len(batch) >= c.cfg.BatchMaxEntries || (batchBytes+lineSize) > c.cfg.BatchMaxBytes {
+						flush(context.Background())
+					}
+					batch = append(batch, e)
+					batchBytes += lineSize
+				default:
+					flush(context.Background())
+					return
+				}
+			}
 		case <-ticker.C:
 			flush(ctx)
 		case e := <-c.queue:
