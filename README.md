@@ -1,5 +1,8 @@
 # lokigo (v0.1 scaffold)
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/zabihimohsen/lokigo.svg)](https://pkg.go.dev/github.com/zabihimohsen/lokigo)
+[![Go Report Card](https://goreportcard.com/badge/github.com/zabihimohsen/lokigo)](https://goreportcard.com/report/github.com/zabihimohsen/lokigo)
+
 > **Non-production warning:** this is an early scaffold for experimentation and API design. It is **not** hardened for production workloads yet.
 
 `lokigo` is a Go client for Grafana Loki with:
@@ -19,6 +22,12 @@ Typical use cases:
 - Lightweight services that want to avoid heavy logging dependency trees
 - Teams needing explicit control over retry/backpressure behavior in application code
 - `slog`-based apps that want direct Loki integration with cardinality-safe labels
+
+## Docs
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [No-sidecar platforms (Railway/Render/Fly)](docs/NO_SIDECAR.md)
+- [Suggested PR description template](docs/PR_DESCRIPTION.md)
 
 ## Install
 
@@ -152,10 +161,11 @@ Custom headers are applied to every push request via `Config.Headers`.
 - retries run per-batch with bounded exponential backoff
 - **flush/retry blocking:** each flush attempt (size-triggered, ticker-triggered, or shutdown drain) runs synchronously in the single background worker. while a batch is retrying, that worker is blocked until the batch succeeds or reaches `Retry.MaxAttempts`.
 - retry classification for push errors:
-  - retries on network errors
-  - retries on HTTP `429` and `5xx`
+  - retries on `*lokigo.NetworkPushError`
+  - retries on `*lokigo.HTTPStatusPushError` when status is `429` or `5xx`
   - does not retry other `4xx`
 - `Config.OnError` (optional) is called when async flush/push fails
+- `Config.OnFlush` (optional) receives running counters: `Dropped`, `Pushed`, `PushErrors`, `Retries`
 - `Close` drains queued entries, flushes pending data, and returns the last flush error (if any)
 - `Close(ctx)` respects caller context: if flush/retry is still in progress and `ctx` expires/cancels first, `Close` returns that context error
 
@@ -181,7 +191,7 @@ go vet ./...
 
 - [x] protobuf + snappy push encoding (with optional JSON mode)
 - [x] per-request custom headers (`Config.Headers`)
-- [ ] metrics hooks (drop counts, queue depth, retry stats)
+- [x] metrics callback hook (`Config.OnFlush`) for running push counters
 - [ ] graceful shutdown with drain deadline options
 - [ ] richer label and stream APIs
-- [ ] benchmarks and soak tests
+- [x] benchmark coverage for payload build/encode modes
