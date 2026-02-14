@@ -116,12 +116,14 @@ handler := lokigo.NewSlogHandler(
 - queue is in-memory only
 - batches are serialized as Loki JSON push payload
 - retries run per-batch with bounded exponential backoff
+- **flush/retry blocking:** each flush attempt (size-triggered, ticker-triggered, or shutdown drain) runs synchronously in the single background worker. while a batch is retrying, that worker is blocked until the batch succeeds or reaches `Retry.MaxAttempts`.
 - retry classification for push errors:
   - retries on network errors
   - retries on HTTP `429` and `5xx`
   - does not retry other `4xx`
 - `Config.OnError` (optional) is called when async flush/push fails
 - `Close` drains queued entries, flushes pending data, and returns the last flush error (if any)
+- `Close(ctx)` respects caller context: if flush/retry is still in progress and `ctx` expires/cancels first, `Close` returns that context error
 
 ## Development
 
