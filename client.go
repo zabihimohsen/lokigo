@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/grafana/loki/pkg/push"
+	"github.com/zabihimohsen/lokigo/internal/push"
 )
 
 var ErrDropped = errors.New("entry dropped due to backpressure")

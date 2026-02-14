@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/golang/snappy"
-	"github.com/grafana/loki/pkg/push"
+	"github.com/zabihimohsen/lokigo/internal/push"
 )
 
 func TestDefaultEncodingIsProtobufSnappy(t *testing.T) {
