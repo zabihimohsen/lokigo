@@ -86,3 +86,90 @@ func TestRetryEventuallySucceeds(t *testing.T) {
 		t.Fatalf("expected 3 attempts, got %d", got)
 	}
 }
+
+func TestRetryStopsOnHTTP400(t *testing.T) {
+	var attempts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		http.Error(w, "bad request", http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{
+		Endpoint:        srv.URL,
+		BatchMaxEntries: 1,
+		Retry:           RetryConfig{MaxAttempts: 5, MinBackoff: 5 * time.Millisecond, MaxBackoff: 10 * time.Millisecond, JitterFrac: 0},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Send(context.Background(), Entry{Line: "no retry"}); err != nil {
+		t.Fatal(err)
+	}
+	err = c.Close(context.Background())
+	if err == nil {
+		t.Fatal("expected close error")
+	}
+	if got := atomic.LoadInt32(&attempts); got != 1 {
+		t.Fatalf("expected 1 attempt for http 400, got %d", got)
+	}
+}
+
+func TestRetryOnHTTP429(t *testing.T) {
+	var attempts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n < 3 {
+			http.Error(w, "too many", http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{
+		Endpoint:        srv.URL,
+		BatchMaxEntries: 1,
+		Retry:           RetryConfig{MaxAttempts: 4, MinBackoff: 5 * time.Millisecond, MaxBackoff: 10 * time.Millisecond, JitterFrac: 0},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Send(context.Background(), Entry{Line: "retry 429"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Fatalf("expected 3 attempts for http 429, got %d", got)
+	}
+}
+
+func TestOnErrorCallback(t *testing.T) {
+	var callbackCount int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{
+		Endpoint:        srv.URL,
+		BatchMaxEntries: 1,
+		OnError: func(err error) {
+			if err != nil {
+				atomic.AddInt32(&callbackCount, 1)
+			}
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Send(context.Background(), Entry{Line: "fail"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = c.Close(context.Background())
+	if got := atomic.LoadInt32(&callbackCount); got == 0 {
+		t.Fatal("expected OnError callback to be invoked")
+	}
+}

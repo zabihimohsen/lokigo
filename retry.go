@@ -14,6 +14,9 @@ func doRetry(ctx context.Context, cfg RetryConfig, fn func() error) error {
 			return nil
 		} else {
 			lastErr = err
+			if !shouldRetryPushError(err) {
+				return err
+			}
 		}
 		if i == cfg.MaxAttempts-1 {
 			break
@@ -28,6 +31,19 @@ func doRetry(ctx context.Context, cfg RetryConfig, fn func() error) error {
 		}
 	}
 	return lastErr
+}
+
+func shouldRetryPushError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := err.(*networkPushError); ok {
+		return true
+	}
+	if e, ok := err.(*httpStatusPushError); ok {
+		return e.StatusCode == 429 || e.StatusCode >= 500
+	}
+	return false
 }
 
 func backoffWithJitter(cfg RetryConfig, attempt int) time.Duration {

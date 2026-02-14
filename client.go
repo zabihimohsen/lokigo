@@ -20,6 +20,22 @@ type Entry struct {
 	Labels    map[string]string
 }
 
+type networkPushError struct {
+	err error
+}
+
+func (e *networkPushError) Error() string { return e.err.Error() }
+func (e *networkPushError) Unwrap() error { return e.err }
+
+type httpStatusPushError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *httpStatusPushError) Error() string {
+	return fmt.Sprintf("loki push failed: %d %s", e.StatusCode, e.Body)
+}
+
 type Client struct {
 	cfg    Config
 	queue  chan Entry
@@ -111,11 +127,11 @@ func (c *Client) run(ctx context.Context) {
 				}
 			}
 		case <-ticker.C:
-			flush(ctx)
+			flush(context.Background())
 		case e := <-c.queue:
 			lineSize := len(e.Line)
 			if len(batch) >= c.cfg.BatchMaxEntries || (batchBytes+lineSize) > c.cfg.BatchMaxBytes {
-				flush(ctx)
+				flush(context.Background())
 			}
 			batch = append(batch, e)
 			batchBytes += lineSize
@@ -139,12 +155,12 @@ func (c *Client) pushWithRetry(ctx context.Context, entries []Entry) error {
 		}
 		resp, err := c.cfg.HTTPClient.Do(req)
 		if err != nil {
-			return err
+			return &networkPushError{err: err}
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode/100 != 2 {
 			b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-			return fmt.Errorf("loki push failed: %d %s", resp.StatusCode, string(b))
+			return &httpStatusPushError{StatusCode: resp.StatusCode, Body: string(b)}
 		}
 		return nil
 	})
@@ -193,6 +209,10 @@ func mergeLabels(a, b map[string]string) map[string]string {
 
 func (c *Client) setErr(err error) {
 	c.errMu.Lock()
-	defer c.errMu.Unlock()
 	c.lastErr = err
+	onError := c.cfg.OnError
+	c.errMu.Unlock()
+	if onError != nil {
+		onError(err)
+	}
 }
