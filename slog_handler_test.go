@@ -37,7 +37,7 @@ func TestSlogHandlerDefaultDoesNotPromoteAttrsToLabels(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := NewClient(Config{Endpoint: srv.URL, BatchMaxEntries: 1})
+	c, err := NewClient(Config{Endpoint: srv.URL, Encoding: EncodingJSON, BatchMaxEntries: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestSlogHandlerLabelAllowListPromotesSelectedAttrsAndGroups(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := NewClient(Config{Endpoint: srv.URL, BatchMaxEntries: 1})
+	c, err := NewClient(Config{Endpoint: srv.URL, Encoding: EncodingJSON, BatchMaxEntries: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

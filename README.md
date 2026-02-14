@@ -44,6 +44,8 @@ func main() {
 	c, err := lokigo.NewClient(lokigo.Config{
 		Endpoint:         "http://localhost:3100/loki/api/v1/push",
 		StaticLabels:     map[string]string{"app": "demo", "env": "dev"},
+		Encoding:         lokigo.EncodingProtobufSnappy, // default
+		Headers:          map[string]string{"Authorization": "Bearer <token>"},
 		QueueSize:        1024,
 		BatchMaxEntries:  500,
 		BatchMaxBytes:    1 << 20,
@@ -122,10 +124,31 @@ handler := lokigo.NewSlogHandler(
 )
 ```
 
+## Transport + headers
+
+`lokigo` now supports two push encodings:
+
+- `EncodingProtobufSnappy` (default): sends `application/x-protobuf` with `Content-Encoding: snappy`
+- `EncodingJSON`: sends classic Loki JSON payload (`application/json`)
+
+Example (Grafana Cloud-style basic auth):
+
+```go
+client, _ := lokigo.NewClient(lokigo.Config{
+	Endpoint: "https://logs-prod-xxx.grafana.net/loki/api/v1/push",
+	Headers: map[string]string{
+		"Authorization": "Basic <base64(instance_id:api_token)>",
+	},
+})
+```
+
+Custom headers are applied to every push request via `Config.Headers`.
+
+`TenantID` is still mapped to `X-Scope-OrgID` and takes precedence over a same-named key in `Headers`.
+
 ## v0.1 behavior
 
 - queue is in-memory only
-- batches are serialized as Loki JSON push payload
 - retries run per-batch with bounded exponential backoff
 - **flush/retry blocking:** each flush attempt (size-triggered, ticker-triggered, or shutdown drain) runs synchronously in the single background worker. while a batch is retrying, that worker is blocked until the batch succeeds or reaches `Retry.MaxAttempts`.
 - retry classification for push errors:
@@ -136,6 +159,17 @@ handler := lokigo.NewSlogHandler(
 - `Close` drains queued entries, flushes pending data, and returns the last flush error (if any)
 - `Close(ctx)` respects caller context: if flush/retry is still in progress and `ctx` expires/cancels first, `Close` returns that context error
 
+## Migration notes
+
+- Default wire format changed from JSON to protobuf+snappy for lower payload size and better Loki-native compatibility.
+- If you depend on inspecting raw JSON request bodies (tests/proxies), set `Encoding: lokigo.EncodingJSON`.
+- Header injection moved into first-class config (`Config.Headers`) so auth/proxy headers no longer require custom `http.RoundTripper` wrappers.
+
+## Tradeoffs
+
+- Protobuf+snappy reduces wire size, but request payloads are less human-readable while debugging.
+- JSON is easier to inspect manually, but tends to be larger over the network.
+
 ## Development
 
 ```bash
@@ -145,7 +179,8 @@ go vet ./...
 
 ## Roadmap
 
-- [ ] protobuf + snappy push encoding
+- [x] protobuf + snappy push encoding (with optional JSON mode)
+- [x] per-request custom headers (`Config.Headers`)
 - [ ] metrics hooks (drop counts, queue depth, retry stats)
 - [ ] graceful shutdown with drain deadline options
 - [ ] richer label and stream APIs

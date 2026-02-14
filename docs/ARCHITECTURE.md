@@ -5,7 +5,7 @@
 ## Package layout
 
 - `config.go` - client/retry/batching/backpressure config and defaults
-- `client.go` - client API (`NewClient`, `Send`, `Close`), worker loop, Loki push payload building
+- `client.go` - client API (`NewClient`, `Send`, `Close`), worker loop, Loki push payload building (JSON or protobuf+snappy)
 - `slog_handler.go` - `log/slog` adapter (`NewSlogHandler`) that maps records to `Entry`
 - `backpressure.go` - enqueue behavior for `block`, `drop-new`, `drop-oldest`
 - `retry.go` - exponential backoff with jitter and retry classification helpers
@@ -21,7 +21,9 @@
    - max entries
    - max bytes (line byte size approximation)
    - max wait interval
-5. flush posts JSON payload to Loki `/loki/api/v1/push`
+5. flush posts payload to Loki `/loki/api/v1/push` using configured encoding:
+   - protobuf+snappy (default): `Content-Type: application/x-protobuf`, `Content-Encoding: snappy`
+   - JSON (compat mode): `Content-Type: application/json`
 6. flush is synchronous in the single worker (including ticker-triggered flushes). if push fails with retryable errors, retry loop blocks that worker until success or `Retry.MaxAttempts` exhaustion
 7. retry logic retries only on transient push errors:
    - network errors
@@ -55,7 +57,12 @@ Example:
 - good labels: `service`, `env`, `http.method`, `http.status`
 - keep in line: `request_id`, `trace_id`, `user_id`, `http.path` (if unbounded)
 
+## Request headers
+
+Each push request starts with transport headers (`Content-Type` and optional `Content-Encoding`), then applies `Config.Headers`, then applies `TenantID` as `X-Scope-OrgID`.
+
+If both `Headers["X-Scope-OrgID"]` and `TenantID` are set, `TenantID` wins.
+
 ## Notes
 
-- This intentionally uses plain JSON push (no protobuf/snappy optimization yet).
 - Durability guarantees are minimal (in-memory queue only).
