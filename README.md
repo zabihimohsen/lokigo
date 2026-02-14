@@ -69,18 +69,47 @@ client, _ := lokigo.NewClient(lokigo.Config{
 	Endpoint: "http://localhost:3100/loki/api/v1/push",
 })
 
-handler := lokigo.NewSlogHandler(client, lokigo.WithSlogLevel(slog.LevelInfo))
+handler := lokigo.NewSlogHandler(
+	client,
+	lokigo.WithSlogLevel(slog.LevelInfo),
+	lokigo.WithLabelAllowList("service", "http.status"),
+)
 logger := slog.New(handler).With("service", "api").WithGroup("http")
 
-logger.Info("request complete", "status", 200, "path", "/health")
+logger.Info("request complete", "status", 200, "path", "/health", "request_id", "r-123")
 ```
 
 `NewSlogHandler` maps `slog.Record` to `lokigo.Entry`:
 
 - timestamp -> `Entry.Timestamp`
 - message plus rendered attrs -> `Entry.Line`
-- attrs (including groups) -> `Entry.Labels` (grouped keys are flattened with `.`)
-- record level -> `level` label (configurable/optional with `WithSlogLevelLabel`)
+- level -> `level` label by default (configurable/optional with `WithSlogLevelLabel`)
+- attrs/groups -> labels only when explicitly allow-listed via `WithLabelAllowList`
+
+### Loki label cardinality guidance
+
+Loki labels define stream cardinality. High-cardinality values (for example `request_id`, `trace_id`, user IDs, session IDs, URLs with unbounded parameters) should usually **stay in the log line**, not labels.
+
+`lokigo` keeps attrs in `Entry.Line` even when they are not labels, so context is preserved without exploding stream count.
+
+Use an allow list to promote only stable, bounded dimensions:
+
+```go
+handler := lokigo.NewSlogHandler(
+	client,
+	lokigo.WithLabelAllowList("service", "http.method", "http.status"),
+)
+```
+
+Optional hard block for sensitive/high-cardinality fields:
+
+```go
+handler := lokigo.NewSlogHandler(
+	client,
+	lokigo.WithLabelAllowList("service", "trace_id"),
+	lokigo.WithLabelDenyList("trace_id"),
+)
+```
 
 ## v0.1 behavior
 
