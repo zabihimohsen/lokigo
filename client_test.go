@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +14,10 @@ import (
 	"testing"
 	"time"
 )
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestBatchingByMaxEntries(t *testing.T) {
 	var mu sync.Mutex
@@ -369,4 +375,98 @@ func TestCloseRespectsCanceledContext(t *testing.T) {
 	if err != nil && strings.Contains(err.Error(), "deadline") {
 		t.Fatalf("expected canceled context, got %v", err)
 	}
+}
+
+func TestOnFlushCallbackReportsRunningTotals(t *testing.T) {
+	var last atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "nope", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{
+		Endpoint:         srv.URL,
+		Encoding:         EncodingJSON,
+		QueueSize:        1,
+		BatchMaxEntries:  1,
+		BackpressureMode: BackpressureDropNew,
+		Retry: RetryConfig{
+			MaxAttempts: 2,
+			MinBackoff:  1 * time.Millisecond,
+			MaxBackoff:  1 * time.Millisecond,
+			JitterFrac:  0,
+		},
+		OnFlush: func(m Metrics) {
+			last.Store(m)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Send(context.Background(), Entry{Line: "first"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Send(context.Background(), Entry{Line: "second"}); !errors.Is(err, ErrDropped) {
+		t.Fatalf("expected ErrDropped, got %v", err)
+	}
+	_ = c.Close(context.Background())
+
+	v := last.Load()
+	if v == nil {
+		t.Fatal("expected OnFlush to be called")
+	}
+	m := v.(Metrics)
+	if m.Dropped == 0 {
+		t.Fatalf("expected dropped > 0, got %+v", m)
+	}
+	if m.PushErrors == 0 {
+		t.Fatalf("expected push errors > 0, got %+v", m)
+	}
+	if m.Retries == 0 {
+		t.Fatalf("expected retries > 0, got %+v", m)
+	}
+}
+
+func TestPushErrorTaxonomySupportsErrorsAs(t *testing.T) {
+	t.Run("http status", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "bad request", http.StatusBadRequest)
+		}))
+		defer srv.Close()
+
+		c, err := NewClient(Config{Endpoint: srv.URL, Encoding: EncodingJSON, BatchMaxEntries: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Send(context.Background(), Entry{Line: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		err = c.Close(context.Background())
+		var statusErr *HTTPStatusPushError
+		if !errors.As(err, &statusErr) {
+			t.Fatalf("expected HTTPStatusPushError, got %v", err)
+		}
+		if statusErr.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", statusErr.StatusCode)
+		}
+	})
+
+	t.Run("network", func(t *testing.T) {
+		hc := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("dial: %w", &net.OpError{Op: "dial", Err: errors.New("boom")})
+		})}
+		c, err := NewClient(Config{Endpoint: "http://example.invalid", Encoding: EncodingJSON, BatchMaxEntries: 1, HTTPClient: hc})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Send(context.Background(), Entry{Line: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		err = c.Close(context.Background())
+		var netErr *NetworkPushError
+		if !errors.As(err, &netErr) {
+			t.Fatalf("expected NetworkPushError, got %v", err)
+		}
+	})
 }
