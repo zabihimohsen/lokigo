@@ -22,11 +22,14 @@
    - max bytes (line byte size approximation)
    - max wait interval
 5. flush posts JSON payload to Loki `/loki/api/v1/push`
-6. retry logic retries only on transient push errors:
+6. flush is synchronous in the single worker (including ticker-triggered flushes). if push fails with retryable errors, retry loop blocks that worker until success or `Retry.MaxAttempts` exhaustion
+7. retry logic retries only on transient push errors:
    - network errors
    - HTTP `429`
    - HTTP `5xx`
-7. when async flush fails, latest error is stored and optional `Config.OnError` callback is invoked
+8. when async flush fails, latest error is stored and optional `Config.OnError` callback is invoked
+
+`Close(ctx)` waits for worker exit, but returns early with `ctx.Err()` if caller deadline/cancel fires while a blocking flush/retry is still running.
 
 ## slog handler notes
 

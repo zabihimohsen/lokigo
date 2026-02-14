@@ -89,12 +89,20 @@ func (c *Client) Close(ctx context.Context) error {
 	return c.lastErr
 }
 
+const (
+	// If a temporary spike causes the batch backing array to grow far beyond the
+	// normal target, shrink it after flush so long-lived clients don't retain
+	// oversized memory indefinitely.
+	batchReuseShrinkFactor = 4
+)
+
 func (c *Client) run(ctx context.Context) {
 	defer c.wg.Done()
 	ticker := time.NewTicker(c.cfg.BatchMaxWait)
 	defer ticker.Stop()
 
-	batch := make([]Entry, 0, c.cfg.BatchMaxEntries)
+	baselineCap := c.cfg.BatchMaxEntries
+	batch := make([]Entry, 0, baselineCap)
 	batchBytes := 0
 
 	flush := func(flushCtx context.Context) {
@@ -104,7 +112,11 @@ func (c *Client) run(ctx context.Context) {
 		if err := c.pushWithRetry(flushCtx, batch); err != nil {
 			c.setErr(err)
 		}
-		batch = batch[:0]
+		if cap(batch) > baselineCap*batchReuseShrinkFactor {
+			batch = make([]Entry, 0, baselineCap)
+		} else {
+			batch = batch[:0]
+		}
 		batchBytes = 0
 	}
 

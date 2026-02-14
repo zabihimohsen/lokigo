@@ -3,8 +3,10 @@ package lokigo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -171,5 +173,193 @@ func TestOnErrorCallback(t *testing.T) {
 	_ = c.Close(context.Background())
 	if got := atomic.LoadInt32(&callbackCount); got == 0 {
 		t.Fatal("expected OnError callback to be invoked")
+	}
+}
+
+func TestBatchingByMaxBytes(t *testing.T) {
+	var mu sync.Mutex
+	var batchSizes []int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		var payload struct {
+			Streams []struct {
+				Values [][2]string `json:"values"`
+			} `json:"streams"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		n := 0
+		for _, s := range payload.Streams {
+			n += len(s.Values)
+		}
+		mu.Lock()
+		batchSizes = append(batchSizes, n)
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{Endpoint: srv.URL, BatchMaxBytes: 4, BatchMaxEntries: 100, BatchMaxWait: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 3; i++ {
+		if err := c.Send(context.Background(), Entry{Line: "abc"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(batchSizes) != 3 || batchSizes[0] != 1 || batchSizes[1] != 1 || batchSizes[2] != 1 {
+		t.Fatalf("unexpected batch sizes: %#v", batchSizes)
+	}
+}
+
+func TestTenantIDHeaderIsSent(t *testing.T) {
+	const tenant = "acme-tenant"
+	seen := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Get("X-Scope-OrgID")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{Endpoint: srv.URL, TenantID: tenant, BatchMaxEntries: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Send(context.Background(), Entry{Line: "tenant header"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case got := <-seen:
+		if got != tenant {
+			t.Fatalf("expected tenant header %q, got %q", tenant, got)
+		}
+	default:
+		t.Fatal("expected request to be captured")
+	}
+}
+
+func TestStaticLabelsMergedWithEntryLabelsEntryWins(t *testing.T) {
+	var gotStream map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		var payload struct {
+			Streams []struct {
+				Stream map[string]string `json:"stream"`
+			} `json:"streams"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(payload.Streams) != 1 {
+			t.Fatalf("expected one stream, got %d", len(payload.Streams))
+		}
+		gotStream = payload.Streams[0].Stream
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{
+		Endpoint:        srv.URL,
+		BatchMaxEntries: 1,
+		StaticLabels: map[string]string{
+			"service": "api",
+			"env":     "prod",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Send(context.Background(), Entry{Line: "msg", Labels: map[string]string{"service": "worker", "trace_id": "t-1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if gotStream["service"] != "worker" {
+		t.Fatalf("expected entry label to override static label, got %#v", gotStream)
+	}
+	if gotStream["env"] != "prod" || gotStream["trace_id"] != "t-1" {
+		t.Fatalf("unexpected merged labels: %#v", gotStream)
+	}
+}
+
+func TestCloseRespectsDeadlineDuringRetry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "retry", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{
+		Endpoint:        srv.URL,
+		BatchMaxEntries: 1,
+		Retry: RetryConfig{
+			MaxAttempts: 10,
+			MinBackoff:  100 * time.Millisecond,
+			MaxBackoff:  100 * time.Millisecond,
+			JitterFrac:  0,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Send(context.Background(), Entry{Line: "will retry"}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err = c.Close(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected close deadline exceeded, got %v", err)
+	}
+}
+
+func TestCloseRespectsCanceledContext(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "retry", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{
+		Endpoint:        srv.URL,
+		BatchMaxEntries: 1,
+		Retry: RetryConfig{
+			MaxAttempts: 10,
+			MinBackoff:  100 * time.Millisecond,
+			MaxBackoff:  100 * time.Millisecond,
+			JitterFrac:  0,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Send(context.Background(), Entry{Line: "will retry"}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = c.Close(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected close canceled, got %v", err)
+	}
+	if err != nil && strings.Contains(err.Error(), "deadline") {
+		t.Fatalf("expected canceled context, got %v", err)
 	}
 }
