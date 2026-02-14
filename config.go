@@ -32,6 +32,9 @@ type Config struct {
 	BatchMaxWait     time.Duration
 	BackpressureMode BackpressureMode
 	Retry            RetryConfig
+	// OnError is called when async background flush/push fails.
+	// It is optional and must be safe for concurrent use.
+	OnError func(error)
 }
 
 func (c *Config) setDefaults() {
