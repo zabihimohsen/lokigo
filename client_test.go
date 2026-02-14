@@ -71,7 +71,7 @@ func TestRetryEventuallySucceeds(t *testing.T) {
 	c, err := NewClient(Config{
 		Endpoint:        srv.URL,
 		BatchMaxEntries: 1,
-		Retry: RetryConfig{MaxAttempts: 4, MinBackoff: 10 * time.Millisecond, MaxBackoff: 20 * time.Millisecond, JitterFrac: 0},
+		Retry:           RetryConfig{MaxAttempts: 4, MinBackoff: 10 * time.Millisecond, MaxBackoff: 20 * time.Millisecond, JitterFrac: 0},
 	})
 	if err != nil {
 		t.Fatal(err)
