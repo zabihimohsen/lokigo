@@ -27,7 +27,6 @@ Typical use cases:
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [No-sidecar platforms (Railway/Render/Fly)](docs/NO_SIDECAR.md)
-- [Suggested PR description template](docs/PR_DESCRIPTION.md)
 
 ## Install
 
@@ -164,8 +163,11 @@ Custom headers are applied to every push request via `Config.Headers`.
   - retries on `*lokigo.NetworkPushError`
   - retries on `*lokigo.HTTPStatusPushError` when status is `429` or `5xx`
   - does not retry other `4xx`
-- `Config.OnError` (optional) is called when async flush/push fails
+- `Config.OnError` (optional) is called when async flush/push ultimately fails
 - `Config.OnFlush` (optional) receives running counters: `Dropped`, `Pushed`, `PushErrors`, `Retries`
+  - callback cadence is **per flush attempt/outcome** (including retries), not just per logical batch
+  - each retry attempt that errors increments `PushErrors`; successful retry completion increments `Pushed`
+  - `Retries` increments on attempts after the first (both failed retry attempts and successful retry completion)
 - `Close` drains queued entries, flushes pending data, and returns the last flush error (if any)
 - `Close(ctx)` respects caller context: if flush/retry is still in progress and `ctx` expires/cancels first, `Close` returns that context error
 
