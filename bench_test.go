@@ -38,6 +38,7 @@ func BenchmarkPayloadBuildEncode_JSON_500Entries(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		b.ReportMetric(float64(len(payload)), "bytes/batch")
 		if len(payload) == 0 || contentType != "application/json" || contentEncoding != "" {
 			b.Fatal("unexpected json payload metadata")
 		}
@@ -59,6 +60,7 @@ func BenchmarkPayloadBuildEncode_ProtobufSnappy_500Entries(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		b.ReportMetric(float64(len(payload)), "bytes/batch")
 		if len(payload) == 0 || contentType != "application/x-protobuf" || contentEncoding != "snappy" {
 			b.Fatal("unexpected protobuf payload metadata")
 		}

@@ -64,6 +64,50 @@ func TestBatchingByMaxEntries(t *testing.T) {
 	}
 }
 
+
+func TestFlushesImmediatelyWhenBatchHitsMaxEntries(t *testing.T) {
+	requests := make(chan int, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		var payload struct {
+			Streams []struct {
+				Values [][2]string `json:"values"`
+			} `json:"streams"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		n := 0
+		for _, st := range payload.Streams {
+			n += len(st.Values)
+		}
+		requests <- n
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(Config{Endpoint: srv.URL, Encoding: EncodingJSON, BatchMaxEntries: 3, BatchMaxWait: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Close(context.Background()) }()
+
+	for i := 0; i < 3; i++ {
+		if err := c.Send(context.Background(), Entry{Line: "x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	select {
+	case got := <-requests:
+		if got != 3 {
+			t.Fatalf("expected immediate flush of 3 entries, got %d", got)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected flush as soon as batch reached max entries")
+	}
+}
+
 func TestRetryEventuallySucceeds(t *testing.T) {
 	var attempts int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
