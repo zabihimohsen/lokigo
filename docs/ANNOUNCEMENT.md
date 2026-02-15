@@ -9,10 +9,12 @@ Why I built it:
 
 What it includes:
 - Protobuf+snappy push by default (JSON fallback available)
-- `log/slog` handler built in
+- Built-in `log/slog` handler
+- Passes `testing/slogtest` conformance (all 16 subtests)
 - Cardinality-safe label behavior (allow-list based)
 - Retry + backpressure controls
 - Optional flush/error callbacks for observability
+- Only 2 Go dependencies (`github.com/golang/snappy`, `google.golang.org/protobuf`)
 
 Quick benchmark signal (500 entries fixture):
 - JSON payload: `52,337 bytes/batch`
@@ -20,4 +22,4 @@ Quick benchmark signal (500 entries fixture):
 
 Repo: https://github.com/zabihimohsen/lokigo
 
-If you run Loki from Go services and can’t use sidecars, feedback is very welcome.
+If you run Loki from Go services and can’t use sidecars, feedback, issues, and stars are very welcome — especially from teams running Loki without sidecars.

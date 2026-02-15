@@ -186,10 +186,10 @@ Custom headers are applied to every push request via `Config.Headers`.
 
 `go test -bench=. -benchmem -count=3 ./...`
 
-| Benchmark (500 entries) | Encode time (ns/op, avg of 3) | Payload size (`bytes/batch`) |
-|---|---:|---:|
-| JSON | ~1,255,704 | 52,337 |
-| Protobuf + Snappy | ~1,527,502 | ~10,211 |
+| Benchmark (500 entries) | Encode time (ns/op, avg of 3) | Payload size (`bytes/batch`, avg of 3) | allocs/op (avg of 3) |
+|---|---:|---:|---:|
+| JSON | ~1,255,704 | ~52,337 | ~6,625 |
+| Protobuf + Snappy | ~1,527,502 | ~10,211 | ~9,169 |
 
 Notes:
 - Results are from this repo's benchmark fixture and are hardware/runtime dependent.

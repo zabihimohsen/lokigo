@@ -12,9 +12,10 @@ https://github.com/zabihimohsen/lokigo
 ## Trust/quality signals
 - CI: test + vet + lint
 - Runnable examples on pkg.go.dev (`example_test.go`)
+- Go Report Card badge in README
 - Benchmark coverage for payload encoding modes
 - `testing/slogtest` conformance coverage
 - Tagged releases
 
-## Optional short blurb
-A lightweight Go client for Grafana Loki with protobuf+snappy transport, built-in slog handler, and sidecar-less deployment focus.
+## Suggested awesome-go line (Logging section, alphabetical)
+- [lokigo](https://github.com/zabihimohsen/lokigo) - Lightweight Grafana Loki client with protobuf+snappy transport, built-in slog handler, configurable backpressure, and 2 Go dependencies.
