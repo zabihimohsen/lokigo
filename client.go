@@ -149,6 +149,9 @@ func (c *Client) run(ctx context.Context) {
 					}
 					batch = append(batch, e)
 					batchBytes += lineSize
+					if len(batch) >= c.cfg.BatchMaxEntries {
+						flush(context.Background())
+					}
 				default:
 					flush(context.Background())
 					return
@@ -163,6 +166,9 @@ func (c *Client) run(ctx context.Context) {
 			}
 			batch = append(batch, e)
 			batchBytes += lineSize
+			if len(batch) >= c.cfg.BatchMaxEntries {
+				flush(context.Background())
+			}
 		}
 	}
 }
