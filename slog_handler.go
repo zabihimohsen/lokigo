@@ -100,6 +100,14 @@ func (h *slogHandler) Handle(ctx context.Context, r slog.Record) error {
 	if h.cfg.levelLabel != "" {
 		labels[h.cfg.levelLabel] = r.Level.String()
 	}
+	// Promote record time to labels when allow-listed and non-zero.
+	if !r.Time.IsZero() && h.shouldPromoteToLabel(slog.TimeKey) {
+		labels[slog.TimeKey] = r.Time.Format(time.RFC3339Nano)
+	}
+	// Promote message to labels when allow-listed and non-empty.
+	if r.Message != "" && h.shouldPromoteToLabel(slog.MessageKey) {
+		labels[slog.MessageKey] = r.Message
+	}
 	if r.Message != "" {
 		parts = append(parts, r.Message)
 	}
