@@ -182,6 +182,19 @@ Custom headers are applied to every push request via `Config.Headers`.
 - Protobuf+snappy reduces wire size, but request payloads are less human-readable while debugging.
 - JSON is easier to inspect manually, but tends to be larger over the network.
 
+## Benchmark snapshot
+
+`go test -bench=. -benchmem -count=3 ./...`
+
+| Benchmark (500 entries) | Encode time (ns/op, avg of 3) | Payload size (`bytes/batch`) |
+|---|---:|---:|
+| JSON | ~1,255,704 | 52,337 |
+| Protobuf + Snappy | ~1,527,502 | ~10,211 |
+
+Notes:
+- Results are from this repo's benchmark fixture and are hardware/runtime dependent.
+- The key signal is wire size: protobuf+snappy is ~5x smaller payload in this benchmark.
+
 ## Development
 
 ```bash
