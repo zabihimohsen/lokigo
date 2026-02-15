@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang/snappy"
@@ -25,19 +26,19 @@ type Entry struct {
 	Labels    map[string]string
 }
 
-type networkPushError struct {
-	err error
+type NetworkPushError struct {
+	Err error
 }
 
-func (e *networkPushError) Error() string { return e.err.Error() }
-func (e *networkPushError) Unwrap() error { return e.err }
+func (e *NetworkPushError) Error() string { return e.Err.Error() }
+func (e *NetworkPushError) Unwrap() error { return e.Err }
 
-type httpStatusPushError struct {
+type HTTPStatusPushError struct {
 	StatusCode int
 	Body       string
 }
 
-func (e *httpStatusPushError) Error() string {
+func (e *HTTPStatusPushError) Error() string {
 	return fmt.Sprintf("loki push failed: %d %s", e.StatusCode, e.Body)
 }
 
@@ -46,6 +47,11 @@ type Client struct {
 	queue  chan Entry
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	dropped    atomic.Uint64
+	pushed     atomic.Uint64
+	pushErrors atomic.Uint64
+	retries    atomic.Uint64
 
 	errMu   sync.Mutex
 	lastErr error
@@ -68,7 +74,12 @@ func (c *Client) Send(ctx context.Context, e Entry) error {
 	if e.Timestamp.IsZero() {
 		e.Timestamp = time.Now().UTC()
 	}
-	if err := enqueueWithMode(ctx, c.queue, e, c.cfg.BackpressureMode); err != nil {
+	dropped, err := enqueueWithMode(ctx, c.queue, e, c.cfg.BackpressureMode)
+	if dropped > 0 {
+		c.dropped.Add(uint64(dropped))
+		c.reportFlushMetrics()
+	}
+	if err != nil {
 		if errors.Is(err, errDroppedInternal) {
 			return ErrDropped
 		}
@@ -161,9 +172,14 @@ func (c *Client) pushWithRetry(ctx context.Context, entries []Entry) error {
 	if err != nil {
 		return err
 	}
-	return doRetry(ctx, c.cfg.Retry, func() error {
+	return doRetry(ctx, c.cfg.Retry, func(attempt int) error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.Endpoint, bytes.NewReader(payload))
 		if err != nil {
+			c.pushErrors.Add(uint64(len(entries)))
+			if attempt > 0 {
+				c.retries.Add(1)
+			}
+			c.reportFlushMetrics()
 			return err
 		}
 		req.Header.Set("Content-Type", contentType)
@@ -178,14 +194,41 @@ func (c *Client) pushWithRetry(ctx context.Context, entries []Entry) error {
 		}
 		resp, err := c.cfg.HTTPClient.Do(req)
 		if err != nil {
-			return &networkPushError{err: err}
+			c.pushErrors.Add(uint64(len(entries)))
+			if attempt > 0 {
+				c.retries.Add(1)
+			}
+			c.reportFlushMetrics()
+			return &NetworkPushError{Err: err}
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode/100 != 2 {
 			b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-			return &httpStatusPushError{StatusCode: resp.StatusCode, Body: string(b)}
+			c.pushErrors.Add(uint64(len(entries)))
+			if attempt > 0 {
+				c.retries.Add(1)
+			}
+			c.reportFlushMetrics()
+			return &HTTPStatusPushError{StatusCode: resp.StatusCode, Body: string(b)}
 		}
+		c.pushed.Add(uint64(len(entries)))
+		if attempt > 0 {
+			c.retries.Add(1)
+		}
+		c.reportFlushMetrics()
 		return nil
+	})
+}
+
+func (c *Client) reportFlushMetrics() {
+	if c.cfg.OnFlush == nil {
+		return
+	}
+	c.cfg.OnFlush(Metrics{
+		Dropped:    c.dropped.Load(),
+		Pushed:     c.pushed.Load(),
+		PushErrors: c.pushErrors.Load(),
+		Retries:    c.retries.Load(),
 	})
 }
 

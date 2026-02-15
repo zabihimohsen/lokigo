@@ -26,6 +26,13 @@ type RetryConfig struct {
 	JitterFrac  float64
 }
 
+type Metrics struct {
+	Dropped    uint64
+	Pushed     uint64
+	PushErrors uint64
+	Retries    uint64
+}
+
 type Config struct {
 	Endpoint         string
 	TenantID         string
@@ -42,6 +49,9 @@ type Config struct {
 	// OnError is called when async background flush/push fails.
 	// It is optional and must be safe for concurrent use.
 	OnError func(error)
+	// OnFlush is called after each batch attempt/update with running totals.
+	// It is optional and must be safe for concurrent use.
+	OnFlush func(Metrics)
 }
 
 func (c *Config) setDefaults() {

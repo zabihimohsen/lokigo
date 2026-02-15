@@ -7,40 +7,42 @@ import (
 
 var errDroppedInternal = errors.New("dropped")
 
-func enqueueWithMode(ctx context.Context, ch chan Entry, v Entry, mode BackpressureMode) error {
+func enqueueWithMode(ctx context.Context, ch chan Entry, v Entry, mode BackpressureMode) (int, error) {
 	switch mode {
 	case BackpressureBlock:
 		select {
 		case ch <- v:
-			return nil
+			return 0, nil
 		case <-ctx.Done():
-			return ctx.Err()
+			return 0, ctx.Err()
 		}
 	case BackpressureDropNew:
 		select {
 		case ch <- v:
-			return nil
+			return 0, nil
 		default:
-			return errDroppedInternal
+			return 1, errDroppedInternal
 		}
 	case BackpressureDropOldest:
+		dropped := 0
 		for {
 			select {
 			case ch <- v:
-				return nil
+				return dropped, nil
 			default:
 				select {
 				case <-ch:
+					dropped++
 				default:
 				}
 			}
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return dropped, ctx.Err()
 			default:
 			}
 		}
 	default:
-		return errors.New("unknown backpressure mode")
+		return 0, errors.New("unknown backpressure mode")
 	}
 }
