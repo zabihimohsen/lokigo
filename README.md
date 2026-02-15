@@ -1,9 +1,11 @@
-# lokigo (v0.1 scaffold)
+# lokigo
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/zabihimohsen/lokigo.svg)](https://pkg.go.dev/github.com/zabihimohsen/lokigo)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zabihimohsen/lokigo)](https://goreportcard.com/report/github.com/zabihimohsen/lokigo)
 
-> **Non-production warning:** this is an early scaffold for experimentation and API design. It is **not** hardened for production workloads yet.
+Lightweight Grafana Loki client for Go with protobuf+snappy transport, built-in `slog` integration, and explicit reliability controls.
+
+> **Pre-1.0 notice:** `lokigo` is actively used and tested, but still pre-1.0. Minor API changes may happen as the project evolves.
 
 `lokigo` is a Go client for Grafana Loki with:
 
@@ -27,6 +29,12 @@ Typical use cases:
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [No-sidecar platforms (Railway/Render/Fly)](docs/NO_SIDECAR.md)
+
+## Stability & compatibility
+
+- **Versioning:** pre-1.0 semver (`0.x`), with occasional breaking changes when needed.
+- **Core surface intended to stay stable:** `Config`, `NewClient`, `Send`, `Close`, and `NewSlogHandler`.
+- **Go version:** see `go.mod` for the current minimum supported Go version.
 
 ## Install
 
