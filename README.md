@@ -5,7 +5,7 @@
 
 Lightweight Grafana Loki client for Go with protobuf+snappy transport, built-in `slog` integration, and explicit reliability controls.
 
-> **Stability notice:** `lokigo` follows semantic versioning. Breaking changes are reserved for major releases.
+> **Stability notice:** `lokigo` is production-ready for its focused use case (sidecar-less Loki delivery from Go services) with known limits documented below. It follows semantic versioning, with breaking changes reserved for major releases.
 
 `lokigo` is a Go client for Grafana Loki with:
 
