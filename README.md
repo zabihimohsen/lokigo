@@ -29,6 +29,7 @@ Typical use cases:
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [No-sidecar platforms (Railway/Render/Fly)](docs/NO_SIDECAR.md)
+- [Release playbook](docs/RELEASE_PLAYBOOK.md)
 
 ## Stability & compatibility
 
