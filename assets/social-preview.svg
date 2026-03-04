@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="lokigo social preview">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#1f2937"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="70" y="70" width="1060" height="490" rx="24" fill="#0b1220" stroke="#334155"/>
+  <text x="120" y="210" fill="#e2e8f0" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="74" font-weight="700">lokigo</text>
+  <text x="120" y="280" fill="#93c5fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="38">Loki logging for sidecar-less Go deployments</text>
+  <text x="120" y="350" fill="#cbd5e1" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="30">protobuf+snappy • slog • retry • backpressure</text>
+  <text x="120" y="470" fill="#94a3b8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="28">github.com/zabihimohsen/lokigo</text>
+</svg>
