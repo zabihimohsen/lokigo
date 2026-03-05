@@ -1,6 +1,6 @@
 # lokigo v0.1 architecture
 
-`lokigo` is a minimal, learning-focused Grafana Loki client prototype.
+`lokigo` is a focused Grafana Loki client for sidecar-less Go deployments (for example Railway), designed for production use within the documented limits.
 
 ## Package layout
 

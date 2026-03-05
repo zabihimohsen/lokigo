@@ -1,0 +1,59 @@
+name: Bug report
+description: Report incorrect behavior in lokigo
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Code/config snippet to reproduce the issue
+      render: go
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: input
+    id: lokigo_version
+    attributes:
+      label: lokigo version
+      placeholder: v0.1.7
+    validations:
+      required: true
+
+  - type: input
+    id: go_version
+    attributes:
+      label: Go version
+      placeholder: go1.24.x
+    validations:
+      required: true
+
+  - type: dropdown
+    id: loki_type
+    attributes:
+      label: Loki deployment type
+      options:
+        - Grafana Cloud
+        - Self-hosted Loki
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
