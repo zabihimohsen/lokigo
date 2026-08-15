@@ -23,7 +23,7 @@ func TestBatchingByMaxEntries(t *testing.T) {
 	var mu sync.Mutex
 	var batchSizes []int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var payload struct {
 			Streams []struct {
 				Values [][2]string `json:"values"`
@@ -68,7 +68,7 @@ func TestBatchingByMaxEntries(t *testing.T) {
 func TestFlushesImmediatelyWhenBatchHitsMaxEntries(t *testing.T) {
 	requests := make(chan int, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var payload struct {
 			Streams []struct {
 				Values [][2]string `json:"values"`
@@ -234,7 +234,7 @@ func TestBatchingByMaxBytes(t *testing.T) {
 	var mu sync.Mutex
 	var batchSizes []int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var payload struct {
 			Streams []struct {
 				Values [][2]string `json:"values"`
@@ -308,7 +308,7 @@ func TestTenantIDHeaderIsSent(t *testing.T) {
 func TestStaticLabelsMergedWithEntryLabelsEntryWins(t *testing.T) {
 	var gotStream map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var payload struct {
 			Streams []struct {
 				Stream map[string]string `json:"stream"`

@@ -18,7 +18,7 @@ func TestDefaultEncodingIsProtobufSnappy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotContentType = r.Header.Get("Content-Type")
 		gotContentEncoding = r.Header.Get("Content-Encoding")
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		compressed, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)

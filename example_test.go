@@ -20,7 +20,7 @@ func ExampleNewClient_basic() {
 	if err != nil {
 		panic(err)
 	}
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	_ = client.Send(context.Background(), lokigo.Entry{Line: "hello from lokigo"})
 }
@@ -34,7 +34,7 @@ func ExampleNewSlogHandler() {
 	if err != nil {
 		panic(err)
 	}
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	h := lokigo.NewSlogHandler(
 		client,
@@ -56,7 +56,7 @@ func ExampleNewClient_hostedAuthHeader() {
 	if err != nil {
 		panic(err)
 	}
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	slog.New(slog.NewTextHandler(os.Stdout, nil)).Info("configured client for hosted Loki")
 }

@@ -18,7 +18,7 @@ func TestSlogHandlerDefaultDoesNotPromoteAttrsToLabels(t *testing.T) {
 	got := captured{}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var payload struct {
 			Streams []struct {
 				Stream map[string]string `json:"stream"`
@@ -72,7 +72,7 @@ func TestSlogHandlerLabelAllowListPromotesSelectedAttrsAndGroups(t *testing.T) {
 	got := captured{}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		var payload struct {
 			Streams []struct {
 				Stream map[string]string `json:"stream"`
