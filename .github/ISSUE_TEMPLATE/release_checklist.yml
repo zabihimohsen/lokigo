@@ -1,0 +1,35 @@
+name: Release checklist
+description: Track tasks for an upcoming lokigo release
+labels: [release]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Target version
+      placeholder: v0.2.0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Readiness checks
+      options:
+        - label: Changelog updated
+        - label: CI green on main
+        - label: Docs updated for user-facing changes
+        - label: No open blocker issues
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Release notes draft
+
+  - type: checkboxes
+    id: post
+    attributes:
+      label: Post-release checks
+      options:
+        - label: GitHub Release verified
+        - label: pkg.go.dev indexed
+        - label: Announcement posted
