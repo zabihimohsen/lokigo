@@ -207,7 +207,7 @@ func (c *Client) pushWithRetry(ctx context.Context, entries []Entry) error {
 			c.reportFlushMetrics()
 			return &NetworkPushError{Err: err}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode/100 != 2 {
 			b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 			c.pushErrors.Add(uint64(len(entries)))
