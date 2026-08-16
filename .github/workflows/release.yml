@@ -58,8 +58,18 @@ jobs:
           git push origin "$TAG"
 
   publish_release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: test
+    # Publishes on both paths:
+    #   - workflow_dispatch: after create_tag pushes the tag (a tag pushed by
+    #     GITHUB_TOKEN does NOT re-trigger the `push: tags` event, so we cannot
+    #     rely on that here — we publish directly using inputs.tag).
+    #   - push of a v* tag from a local machine: action infers the tag from the ref.
+    needs: [test, create_tag]
+    if: >
+      always() && needs.test.result == 'success' &&
+      (
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && needs.create_tag.result == 'success')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -69,4 +79,6 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          # Set on dispatch; empty on a tag push, where the action infers it from the ref.
+          tag_name: ${{ inputs.tag }}
           generate_release_notes: true
