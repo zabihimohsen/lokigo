@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.8] - 2026-08-16
+
+### Changed
+- Bumped `google.golang.org/protobuf` from 1.36.10 to 1.36.12.
+- Migrated CI linting to golangci-lint v2 (`golangci-lint-action` v9); unchecked
+  `Close()` returns surfaced by v2 are now handled explicitly.
+- Bumped GitHub Actions: `actions/checkout` v7, `actions/setup-go` v7,
+  `softprops/action-gh-release` v3.
+- Added Dependabot for Go modules and GitHub Actions.
+
+### Fixed
+- Release workflow: the `workflow_dispatch` path now publishes the GitHub Release
+  directly instead of relying on a `GITHUB_TOKEN`-pushed tag, which cannot
+  re-trigger the tag workflow.
+
 ## [0.1.7] - 2026-02-15
 
 ### Changed
